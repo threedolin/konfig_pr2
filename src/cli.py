@@ -1,13 +1,14 @@
-"""Command-line configuration for a Maven dependency graph visualizer."""
+"""Command-line interface for collecting direct Maven dependencies."""
 
 import argparse
-import re
+import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
-
-MAVEN_PACKAGE_PATTERN = re.compile(r"[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+")
-TEST_PACKAGE_PATTERN = re.compile(r"[A-Z]+")
+from .maven import PACKAGE_PATTERN, MavenRepository
+from .pom import RepositoryError
+from .test_repository import TEST_PACKAGE_PATTERN
+from .test_repository import direct_dependencies as test_dependencies
 
 
 def non_negative_int(value):
@@ -28,11 +29,11 @@ def non_negative_int(value):
 def build_parser():
     """Create the parser for user-configurable application parameters."""
     parser = argparse.ArgumentParser(
-        description="Прототип визуализатора зависимостей Maven (этап 1)."
+        description="Сбор прямых зависимостей Maven (вариант 18, этап 2)."
     )
     parser.add_argument(
         "--package", required=True, metavar="NAME",
-        help="имя пакета: groupId:artifactId или A в тестовом режиме",
+        help="groupId:artifactId[:version] или A в тестовом режиме",
     )
     parser.add_argument(
         "--repository", required=True, metavar="URL_OR_PATH",
@@ -44,7 +45,7 @@ def build_parser():
     )
     parser.add_argument(
         "--output", default="graph.svg", metavar="FILE",
-        help="имя выходного SVG-файла (по умолчанию graph.svg)",
+        help="SVG-файл для этапа визуализации (по умолчанию graph.svg)",
     )
     parser.add_argument(
         "--max-depth", type=non_negative_int, default=3,
@@ -55,12 +56,32 @@ def build_parser():
 
 def validate_package(name, is_test_mode, parser):
     """Check the package name for the selected repository mode."""
-    pattern = TEST_PACKAGE_PATTERN if is_test_mode else MAVEN_PACKAGE_PATTERN
+    pattern = TEST_PACKAGE_PATTERN if is_test_mode else PACKAGE_PATTERN
     if pattern.fullmatch(name):
         return
     if is_test_mode:
         parser.error("в тестовом режиме имя пакета должно состоять из A-Z")
-    parser.error("имя Maven-пакета должно иметь вид groupId:artifactId")
+    parser.error(
+        "имя Maven-пакета должно иметь вид groupId:artifactId[:version]"
+    )
+
+
+def valid_repository_url(source):
+    """Check URL components and reject credentials, queries and fragments."""
+    try:
+        url = urlsplit(source)
+        valid = (
+            url.scheme in ("http", "https")
+            and bool(url.hostname)
+            and url.username is None
+            and url.password is None
+            and not url.query
+            and not url.fragment
+        )
+        _ = url.port
+    except ValueError:
+        valid = False
+    return valid
 
 
 def validate_repository(source, is_test_mode, parser):
@@ -78,18 +99,7 @@ def validate_repository(source, is_test_mode, parser):
 
     if any(char.isspace() for char in source):
         parser.error("URL репозитория не должен содержать пробелы")
-    try:
-        url = urlsplit(source)
-        valid = (
-            url.scheme in ("http", "https")
-            and bool(url.hostname)
-            and url.username is None
-            and url.password is None
-        )
-        _ = url.port
-    except ValueError:
-        valid = False
-    if not valid:
+    if not valid_repository_url(source):
         parser.error("требуется корректный URL репозитория HTTP(S)")
 
 
@@ -105,7 +115,7 @@ def validate_output(filename, parser):
 
 
 def main(argv=None):
-    """Validate CLI options and display their values for the first stage."""
+    """Validate options, print direct dependencies and return an exit status."""
     parser = build_parser()
     options = parser.parse_args(argv)
     is_test_mode = options.test_mode == "true"
@@ -113,11 +123,24 @@ def main(argv=None):
     validate_repository(options.repository, is_test_mode, parser)
     validate_output(options.output, parser)
 
-    print(f"package = {options.package}")
-    print(f"repository = {options.repository}")
-    print(f"test_mode = {options.test_mode}")
-    print(f"output = {options.output}")
-    print(f"max_depth = {options.max_depth}")
+    try:
+        if is_test_mode:
+            package, dependencies = test_dependencies(
+                options.repository, options.package
+            )
+        else:
+            package, dependencies = MavenRepository(
+                options.repository
+            ).direct_dependencies(options.package)
+    except RepositoryError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+    print(f"Прямые зависимости {package}:")
+    if dependencies:
+        for dependency in dependencies:
+            print(f"  {dependency}")
+    else:
+        print("  (нет)")
     return 0
 
 

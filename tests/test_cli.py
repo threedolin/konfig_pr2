@@ -1,12 +1,14 @@
-"""Tests of user settings and validation errors in stage one."""
+"""Tests of dependency output and command-line validation in stage two."""
 
 import contextlib
 import io
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from src.cli import main
+from src.pom import RepositoryError
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "repository.txt"
@@ -17,7 +19,7 @@ class CliTests(unittest.TestCase):
     """Check successful invocation and failures of every CLI parameter."""
 
     def setUp(self):
-        """Provide a valid set of arguments for a Maven repository."""
+        """Provide valid arguments and isolate CLI tests from the network."""
         self.args = [
             "--package", "org.example:demo",
             "--repository", REAL_REPOSITORY,
@@ -25,6 +27,12 @@ class CliTests(unittest.TestCase):
             "--output", "graph.svg",
             "--max-depth", "3",
         ]
+        fetcher = patch("src.cli.MavenRepository.direct_dependencies")
+        self.fetch = fetcher.start()
+        self.addCleanup(fetcher.stop)
+        self.fetch.return_value = (
+            "org.example:demo:1.0", ["org.example:lib:2.0 [scope=compile]"]
+        )
 
     def invoke(self, args):
         """Capture the CLI output and exit status without a child process."""
@@ -50,38 +58,36 @@ class CliTests(unittest.TestCase):
         self.assertEqual(stdout, "")
         self.assertIn(message, stderr)
 
-    def test_real_repository_outputs_every_setting(self):
-        """Print all five parameters in key-value format."""
+    def test_real_repository_outputs_direct_dependencies(self):
+        """Print the resolved package and each direct dependency."""
         status, stdout, stderr = self.invoke(self.args)
         self.assertEqual(status, 0)
         self.assertEqual(stderr, "")
         self.assertEqual(stdout.splitlines(), [
-            "package = org.example:demo",
-            f"repository = {REAL_REPOSITORY}",
-            "test_mode = false",
-            "output = graph.svg",
-            "max_depth = 3",
+            "Прямые зависимости org.example:demo:1.0:",
+            "  org.example:lib:2.0 [scope=compile]",
         ])
+        self.fetch.assert_called_once_with("org.example:demo")
 
-    def test_test_repository_outputs_every_setting(self):
-        """Accept uppercase test packages and an existing test file."""
+    def test_test_repository_outputs_direct_dependencies(self):
+        """Read direct neighbors from the existing uppercase test repository."""
         args = self.replace_value("--package", "A")
         args[args.index("--repository") + 1] = str(FIXTURE)
         args[args.index("--test-mode") + 1] = "true"
         status, stdout, stderr = self.invoke(args)
         self.assertEqual(status, 0)
         self.assertEqual(stderr, "")
-        self.assertIn("package = A", stdout)
-        self.assertIn("test_mode = true", stdout)
+        self.assertEqual(stdout.splitlines(), [
+            "Прямые зависимости A:", "  B", "  C",
+        ])
+        self.fetch.assert_not_called()
 
     def test_default_values(self):
-        """Apply defaults for test mode, output file and maximum depth."""
+        """Accept omitted optional parameters while still collecting data."""
         args = self.args[:4]
         status, stdout, stderr = self.invoke(args)
         self.assertEqual((status, stderr), (0, ""))
-        self.assertIn("test_mode = false", stdout)
-        self.assertIn("output = graph.svg", stdout)
-        self.assertIn("max_depth = 3", stdout)
+        self.assertIn("org.example:lib:2.0", stdout)
 
     def test_missing_package(self):
         """Reject a missing required package name."""
@@ -95,7 +101,10 @@ class CliTests(unittest.TestCase):
 
     def test_invalid_maven_package(self):
         """Reject malformed Maven coordinates and whitespace."""
-        for package in ("demo", "org.example:", "a:b:c", "a b:c"):
+        for package in (
+            "demo", "org.example:", "a:b:c:d", "a b:c", "a:b:../x",
+            "..:demo", "org..example:demo",
+        ):
             with self.subTest(package=package):
                 self.assert_invalid(
                     self.replace_value("--package", package),
@@ -121,6 +130,7 @@ class CliTests(unittest.TestCase):
             "ftp://example.org/repo", "https://", "not-a-url",
             "https://example.org:bad/repo", "https://a b/repo",
             "https://user:password@example.org/repo",
+            "https://example.org/repo?query=1", "https://example.org/repo#x",
         )
         for source in values:
             with self.subTest(source=source):
@@ -186,7 +196,29 @@ class CliTests(unittest.TestCase):
             self.replace_value("--max-depth", "0")
         )
         self.assertEqual((status, stderr), (0, ""))
-        self.assertIn("max_depth = 0", stdout)
+        self.assertIn("org.example:lib:2.0", stdout)
+
+    def test_explicit_version(self):
+        """Pass an explicitly selected version through to the collector."""
+        status, _, stderr = self.invoke(
+            self.replace_value("--package", "org.example:demo:1.0")
+        )
+        self.assertEqual((status, stderr), (0, ""))
+        self.fetch.assert_called_once_with("org.example:demo:1.0")
+
+    def test_repository_error(self):
+        """Report collection failures without a traceback or partial output."""
+        self.fetch.side_effect = RepositoryError("HTTP 404")
+        status, stdout, stderr = self.invoke(self.args)
+        self.assertEqual((status, stdout), (1, ""))
+        self.assertEqual(stderr, "error: HTTP 404\n")
+
+    def test_empty_dependencies(self):
+        """Distinguish a successful empty result from a repository failure."""
+        self.fetch.return_value = ("org.example:demo:1.0", [])
+        status, stdout, stderr = self.invoke(self.args)
+        self.assertEqual((status, stderr), (0, ""))
+        self.assertIn("(нет)", stdout)
 
     def test_unknown_option(self):
         """Reject options not defined in the program interface."""

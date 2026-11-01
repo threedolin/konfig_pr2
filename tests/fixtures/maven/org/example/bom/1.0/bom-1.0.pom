@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>org.example</groupId>
+  <artifactId>bom</artifactId>
+  <version>1.0</version>
+  <packaging>pom</packaging>
+  <properties>
+    <managed.version>5.0</managed.version>
+  </properties>
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.example</groupId>
+        <artifactId>managed</artifactId>
+        <version>${managed.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+</project>
