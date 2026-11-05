@@ -1,1 +1,1 @@
-"""Offline tests for Maven dependency collection and command-line validation."""
+"""Offline tests for Maven collection, BFS graphs and CLI validation."""

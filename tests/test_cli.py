@@ -1,4 +1,4 @@
-"""Tests of dependency output and command-line validation in stage two."""
+"""Tests of graph output and command-line validation in stage three."""
 
 import contextlib
 import io
@@ -27,12 +27,17 @@ class CliTests(unittest.TestCase):
             "--output", "graph.svg",
             "--max-depth", "3",
         ]
-        fetcher = patch("src.cli.MavenRepository.direct_dependencies")
+        resolver = patch("src.cli.MavenRepository.canonical_name")
+        self.resolve = resolver.start()
+        self.addCleanup(resolver.stop)
+        self.resolve.return_value = "org.example:demo:1.0"
+        fetcher = patch("src.cli.MavenRepository.dependency_names")
         self.fetch = fetcher.start()
         self.addCleanup(fetcher.stop)
-        self.fetch.return_value = (
-            "org.example:demo:1.0", ["org.example:lib:2.0 [scope=compile]"]
-        )
+        self.fetch.side_effect = {
+            "org.example:demo:1.0": ["org.example:lib:2.0"],
+            "org.example:lib:2.0": [],
+        }.__getitem__
 
     def invoke(self, args):
         """Capture the CLI output and exit status without a child process."""
@@ -58,19 +63,22 @@ class CliTests(unittest.TestCase):
         self.assertEqual(stdout, "")
         self.assertIn(message, stderr)
 
-    def test_real_repository_outputs_direct_dependencies(self):
-        """Print the resolved package and each direct dependency."""
+    def test_real_repository_outputs_graph(self):
+        """Print the graph with resolved versions and shortest depths."""
         status, stdout, stderr = self.invoke(self.args)
         self.assertEqual(status, 0)
         self.assertEqual(stderr, "")
         self.assertEqual(stdout.splitlines(), [
-            "Прямые зависимости org.example:demo:1.0:",
-            "  org.example:lib:2.0 [scope=compile]",
+            "Граф зависимостей org.example:demo:1.0 "
+            "(максимальная глубина: 3):",
+            "  org.example:demo:1.0 [глубина=0]: org.example:lib:2.0",
+            "  org.example:lib:2.0 [глубина=1]: (нет)",
         ])
-        self.fetch.assert_called_once_with("org.example:demo")
+        self.resolve.assert_called_once_with("org.example:demo")
+        self.assertEqual(self.fetch.call_count, 2)
 
-    def test_test_repository_outputs_direct_dependencies(self):
-        """Read direct neighbors from the existing uppercase test repository."""
+    def test_test_repository_outputs_graph(self):
+        """Traverse the text repository using the same graph algorithm."""
         args = self.replace_value("--package", "A")
         args[args.index("--repository") + 1] = str(FIXTURE)
         args[args.index("--test-mode") + 1] = "true"
@@ -78,16 +86,20 @@ class CliTests(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertEqual(stderr, "")
         self.assertEqual(stdout.splitlines(), [
-            "Прямые зависимости A:", "  B", "  C",
+            "Граф зависимостей A (максимальная глубина: 3):",
+            "  A [глубина=0]: B, C",
+            "  B [глубина=1]: C",
+            "  C [глубина=1]: (нет)",
         ])
         self.fetch.assert_not_called()
+        self.resolve.assert_not_called()
 
     def test_default_values(self):
         """Accept omitted optional parameters while still collecting data."""
         args = self.args[:4]
         status, stdout, stderr = self.invoke(args)
         self.assertEqual((status, stderr), (0, ""))
-        self.assertIn("org.example:lib:2.0", stdout)
+        self.assertIn("максимальная глубина: 3", stdout)
 
     def test_missing_package(self):
         """Reject a missing required package name."""
@@ -196,7 +208,10 @@ class CliTests(unittest.TestCase):
             self.replace_value("--max-depth", "0")
         )
         self.assertEqual((status, stderr), (0, ""))
-        self.assertIn("org.example:lib:2.0", stdout)
+        self.assertIn("org.example:demo:1.0 [глубина=0]", stdout)
+        self.assertIn("(предел глубины)", stdout)
+        self.assertNotIn("org.example:lib", stdout)
+        self.fetch.assert_not_called()
 
     def test_explicit_version(self):
         """Pass an explicitly selected version through to the collector."""
@@ -204,7 +219,7 @@ class CliTests(unittest.TestCase):
             self.replace_value("--package", "org.example:demo:1.0")
         )
         self.assertEqual((status, stderr), (0, ""))
-        self.fetch.assert_called_once_with("org.example:demo:1.0")
+        self.resolve.assert_called_once_with("org.example:demo:1.0")
 
     def test_repository_error(self):
         """Report collection failures without a traceback or partial output."""
@@ -215,10 +230,82 @@ class CliTests(unittest.TestCase):
 
     def test_empty_dependencies(self):
         """Distinguish a successful empty result from a repository failure."""
-        self.fetch.return_value = ("org.example:demo:1.0", [])
+        self.fetch.side_effect = None
+        self.fetch.return_value = []
         status, stdout, stderr = self.invoke(self.args)
         self.assertEqual((status, stderr), (0, ""))
         self.assertIn("(нет)", stdout)
+
+    def test_transitive_error_has_no_partial_graph(self):
+        """Report a nested download failure before printing any graph lines."""
+        self.fetch.side_effect = [
+            ["org.example:lib:2.0"], RepositoryError("HTTP 404"),
+        ]
+        status, stdout, stderr = self.invoke(self.args)
+        self.assertEqual((status, stdout), (1, ""))
+        self.assertIn("HTTP 404", stderr)
+
+    def test_depth_one_does_not_fetch_child_pom(self):
+        """A boundary child appears in output without requesting its POM."""
+        status, stdout, stderr = self.invoke(
+            self.replace_value("--max-depth", "1")
+        )
+        self.assertEqual((status, stderr), (0, ""))
+        self.assertIn("lib:2.0 [глубина=1]: (предел глубины)", stdout)
+        self.fetch.assert_called_once_with("org.example:demo:1.0")
+
+    def text_arguments(self, fixture, package, depth):
+        """Prepare a complete command for one of the stage-three examples."""
+        return [
+            "--package", package, "--repository", str(FIXTURE.parent / fixture),
+            "--test-mode", "true", "--max-depth", str(depth),
+        ]
+
+    def test_text_cycle_and_self_loop(self):
+        """Finish cyclic CLI examples while keeping the closing edges."""
+        for package, expected in (
+            ("A", "C [глубина=2]: A"),
+            ("SELF", "SELF [глубина=0]: SELF"),
+        ):
+            with self.subTest(package=package):
+                status, stdout, stderr = self.invoke(self.text_arguments(
+                    "text_cycle.txt", package, 10
+                ))
+                self.assertEqual((status, stderr), (0, ""))
+                self.assertIn(expected, stdout)
+
+    def test_text_chain_depth_boundary(self):
+        """Include a transitive node at the limit without going further."""
+        status, stdout, stderr = self.invoke(self.text_arguments(
+            "text_chain.txt", "A", 2
+        ))
+        self.assertEqual((status, stderr), (0, ""))
+        self.assertIn("B [глубина=1]: C", stdout)
+        self.assertIn("C [глубина=2]: (предел глубины)", stdout)
+        self.assertNotIn("D", stdout)
+
+    def test_text_disconnected_component(self):
+        """Do not print unrelated components from the same input file."""
+        status, stdout, stderr = self.invoke(self.text_arguments(
+            "text_disconnected.txt", "MAIN", 10
+        ))
+        self.assertEqual((status, stderr), (0, ""))
+        self.assertIn("MAIN [глубина=0]: LEAF", stdout)
+        self.assertIn("LEAF [глубина=1]: (нет)", stdout)
+        self.assertNotIn("OTHER", stdout)
+        self.assertNotIn("ISOLATED", stdout)
+
+    def test_missing_reference_is_an_operational_error(self):
+        """Reject an invalid graph even when the root itself is a leaf."""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "repository.txt"
+            path.write_text("A:\nB: MISSING\n", encoding="utf-8")
+            status, stdout, stderr = self.invoke([
+                "--package", "A", "--repository", str(path),
+                "--test-mode", "true",
+            ])
+        self.assertEqual((status, stdout), (1, ""))
+        self.assertIn("MISSING", stderr)
 
     def test_unknown_option(self):
         """Reject options not defined in the program interface."""

@@ -1,0 +1,6 @@
+# Две независимые цепочки и изолированный пакет.
+MAIN: LEAF
+LEAF:
+OTHER: END
+END:
+ISOLATED:

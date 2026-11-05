@@ -1,0 +1,5 @@
+# Две ветви имеют общую зависимость.
+ROOT: LEFT RIGHT
+LEFT: SHARED
+RIGHT: SHARED
+SHARED:

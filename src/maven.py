@@ -132,3 +132,13 @@ class MavenRepository:
         dependencies = [resolve_dependency(record, model.context, managed)
                         for record in model.dependencies]
         return ":".join(package), dependencies
+
+    def canonical_name(self, name):
+        """Resolve the root version without loading its dependency POM."""
+        return ":".join(self.select_package(name))
+
+    def dependency_names(self, name):
+        """Adapt direct Maven declarations to versioned graph vertex names."""
+        _, dependencies = self.direct_dependencies(name)
+        return [f"{item.group}:{item.artifact}:{item.version}"
+                for item in dependencies]

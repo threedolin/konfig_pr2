@@ -1,14 +1,14 @@
-"""Command-line interface for collecting direct Maven dependencies."""
+"""Command-line interface for breadth-first dependency graph analysis."""
 
 import argparse
 import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from .graph import build_graph, format_graph
 from .maven import PACKAGE_PATTERN, MavenRepository
 from .pom import RepositoryError
-from .test_repository import TEST_PACKAGE_PATTERN
-from .test_repository import direct_dependencies as test_dependencies
+from .test_repository import TEST_PACKAGE_PATTERN, TestRepository
 
 
 def non_negative_int(value):
@@ -29,7 +29,7 @@ def non_negative_int(value):
 def build_parser():
     """Create the parser for user-configurable application parameters."""
     parser = argparse.ArgumentParser(
-        description="Сбор прямых зависимостей Maven (вариант 18, этап 2)."
+        description="Граф зависимостей Maven: BFS (вариант 18, этап 3)."
     )
     parser.add_argument(
         "--package", required=True, metavar="NAME",
@@ -114,8 +114,18 @@ def validate_output(filename, parser):
         parser.error("выходной файл не может быть каталогом")
 
 
+def collect_graph(options):
+    """Choose a repository and build its graph with the common BFS algorithm."""
+    if options.test_mode == "true":
+        repository = TestRepository(options.repository)
+    else:
+        repository = MavenRepository(options.repository)
+    root = repository.canonical_name(options.package)
+    return build_graph(root, repository.dependency_names, options.max_depth)
+
+
 def main(argv=None):
-    """Validate options, print direct dependencies and return an exit status."""
+    """Validate options, display the dependency graph and return a status."""
     parser = build_parser()
     options = parser.parse_args(argv)
     is_test_mode = options.test_mode == "true"
@@ -124,23 +134,11 @@ def main(argv=None):
     validate_output(options.output, parser)
 
     try:
-        if is_test_mode:
-            package, dependencies = test_dependencies(
-                options.repository, options.package
-            )
-        else:
-            package, dependencies = MavenRepository(
-                options.repository
-            ).direct_dependencies(options.package)
+        graph = collect_graph(options)
     except RepositoryError as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
-    print(f"Прямые зависимости {package}:")
-    if dependencies:
-        for dependency in dependencies:
-            print(f"  {dependency}")
-    else:
-        print("  (нет)")
+    print(format_graph(graph))
     return 0
 
 

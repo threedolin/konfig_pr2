@@ -14,6 +14,7 @@ from unittest.mock import patch
 from urllib.error import URLError
 
 from src.cli import main
+from src.graph import build_graph
 from src.maven import MavenRepository
 from src.pom import (
     Dependency, RepositoryError, expand, make_model, parse_xml,
@@ -94,17 +95,50 @@ class HttpRepositoryTests(unittest.TestCase):
         """Run the entry point against HTTP without an external network."""
         result = subprocess.run(
             [sys.executable, "-m", "src.cli", "--package", "org.example:demo",
-             "--repository", self.url, "--max-depth", "0"],
+             "--repository", self.url, "--max-depth", "2"],
             cwd=ROOT, capture_output=True, text=True, timeout=10,
         )
         self.assertEqual((result.returncode, result.stderr), (0, ""))
         self.assertEqual(result.stdout.splitlines(), [
-            "Прямые зависимости org.example:demo:2.0:",
-            "  org.example:test-helper:4.0 [scope=test]",
-            "  org.example:lib:3.2 [scope=compile]",
-            "  org.example:managed:5.0 [scope=compile]",
-            "  org.example:optional:2.0 [scope=provided, optional=true]",
+            "Граф зависимостей org.example:demo:2.0 "
+            "(максимальная глубина: 2):",
+            "  org.example:demo:2.0 [глубина=0]: "
+            "org.example:test-helper:4.0, org.example:lib:3.2, "
+            "org.example:managed:5.0, org.example:optional:2.0",
+            "  org.example:test-helper:4.0 [глубина=1]: "
+            "org.example:shared:1.0",
+            "  org.example:lib:3.2 [глубина=1]: org.example:shared:1.0",
+            "  org.example:managed:5.0 [глубина=1]: org.example:demo:2.0",
+            "  org.example:optional:2.0 [глубина=1]: (нет)",
+            "  org.example:shared:1.0 [глубина=2]: (предел глубины)",
         ])
+
+    def test_graph_requests_only_vertices_within_expansion_depth(self):
+        """Load a shared child once and keep a cycle back to the root."""
+        repository = MavenRepository(self.url)
+        root = repository.canonical_name("org.example:demo")
+        with patch.object(
+            repository, "direct_dependencies",
+            wraps=repository.direct_dependencies,
+        ) as fetch:
+            graph = build_graph(root, repository.dependency_names, 3)
+        self.assertEqual(fetch.call_count, 6)
+        self.assertEqual(graph.depths["org.example:shared:1.0"], 2)
+        self.assertEqual(graph.adjacency["org.example:managed:5.0"], [root])
+        self.assertEqual(graph.adjacency["org.example:shared:1.0"], [])
+
+    def test_zero_depth_loads_metadata_but_not_pom(self):
+        """Version discovery works while no dependency POM is requested."""
+        repository = MavenRepository(self.url)
+        with patch.object(
+            repository, "read_xml", wraps=repository.read_xml
+        ) as read:
+            root = repository.canonical_name("org.example:demo")
+            graph = build_graph(root, repository.dependency_names, 0)
+        self.assertEqual(read.call_count, 1)
+        self.assertTrue(read.call_args[0][0].endswith("maven-metadata.xml"))
+        self.assertEqual(graph.adjacency, {root: []})
+        self.assertEqual(repository.models, {})
 
     def test_cli_download_failure(self):
         """Expose an operational error as exit code one with no traceback."""
