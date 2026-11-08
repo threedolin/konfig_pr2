@@ -152,6 +152,56 @@ class HttpRepositoryTests(unittest.TestCase):
         self.assertEqual((status, stdout.getvalue()), (1, ""))
         self.assertIn("HTTP 404", stderr.getvalue())
 
+    def test_reverse_cli_process(self):
+        """Find shared-package consumers inside a downloaded project graph."""
+        result = subprocess.run(
+            [sys.executable, "-m", "src.cli", "--reverse",
+             "--package", "org.example:shared:1.0",
+             "--analysis-root", "org.example:demo:2.0",
+             "--repository", self.url, "--max-depth", "2"],
+            cwd=ROOT, capture_output=True, text=True, timeout=10,
+        )
+        self.assertEqual((result.returncode, result.stderr), (0, ""))
+        self.assertEqual(result.stdout.splitlines(), [
+            "Обратные зависимости org.example:shared:1.0 "
+            "(максимальная глубина: 2):",
+            "Область поиска: граф org.example:demo:2.0, глубина 2; "
+            "только найденные рёбра",
+            "  org.example:shared:1.0 [глубина=0]: "
+            "org.example:test-helper:4.0, org.example:lib:3.2",
+            "  org.example:test-helper:4.0 [глубина=1]: org.example:demo:2.0",
+            "  org.example:lib:3.2 [глубина=1]: org.example:demo:2.0",
+            "  org.example:demo:2.0 [глубина=2]: (предел глубины)",
+        ])
+
+    def test_reverse_scoped_graph_excludes_unrequested_edges(self):
+        """Do not infer incoming cycle edges from unexpanded boundary nodes."""
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            with contextlib.redirect_stderr(stderr):
+                status = main([
+                    "--package", "org.example:demo:2.0", "--reverse",
+                    "--analysis-root", "org.example:demo:2.0",
+                    "--repository", self.url, "--max-depth", "1",
+                ])
+        self.assertEqual((status, stderr.getvalue()), (0, ""))
+        self.assertIn("только найденные рёбра", stdout.getvalue())
+        self.assertIn("demo:2.0 [глубина=0]: (нет)", stdout.getvalue())
+        self.assertNotIn("managed:5.0", stdout.getvalue())
+
+    def test_reverse_target_outside_downloaded_scope(self):
+        """A valid fixed coordinate outside the selected graph is an error."""
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            with contextlib.redirect_stderr(stderr):
+                status = main([
+                    "--package", "org.example:empty:1.0", "--reverse",
+                    "--analysis-root", "org.example:demo:2.0",
+                    "--repository", self.url, "--max-depth", "1",
+                ])
+        self.assertEqual((status, stdout.getvalue()), (1, ""))
+        self.assertIn("не найден в выбранной области", stderr.getvalue())
+
 
 class MavenModelTests(unittest.TestCase):
     """Check parsing edge cases and management without downloading artifacts."""

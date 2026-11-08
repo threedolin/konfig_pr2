@@ -16,6 +16,8 @@ class DependencyGraph:
     adjacency: dict = field(default_factory=dict)
     depths: dict = field(default_factory=dict)
     expanded: set = field(default_factory=set)
+    reverse: bool = False
+    scope: str = ""
 
 
 def build_graph(root, dependency_names, max_depth):
@@ -40,10 +42,22 @@ def build_graph(root, dependency_names, max_depth):
     return graph
 
 
+def reverse_adjacency(adjacency):
+    """Reverse all known edges, keeping isolated nodes and stable ordering."""
+    reversed_edges = {package: [] for package in adjacency}
+    for package, dependencies in adjacency.items():
+        for dependency in dict.fromkeys(dependencies):
+            reversed_edges.setdefault(dependency, []).append(package)
+    return reversed_edges
+
+
 def format_graph(graph):
     """Render adjacency in BFS order and distinguish unexpanded boundaries."""
-    lines = [f"Граф зависимостей {graph.root} "
+    heading = "Обратные зависимости" if graph.reverse else "Граф зависимостей"
+    lines = [f"{heading} {graph.root} "
              f"(максимальная глубина: {graph.max_depth}):"]
+    if graph.scope:
+        lines.append(f"Область поиска: {graph.scope}")
     for package, depth in graph.depths.items():
         if package not in graph.expanded:
             targets = "(предел глубины)"

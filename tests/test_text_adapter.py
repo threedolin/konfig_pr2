@@ -108,6 +108,18 @@ class TextRepositoryAdapterTests(unittest.TestCase):
         leaf = TestRepository(FIXTURES / "text_leaf.txt")
         self.assertEqual(leaf.dependency_names("LEAF"), [])
 
+    def test_full_adjacency_is_a_snapshot(self):
+        """Expose all consumers without sharing internal dependency lists."""
+        repository = self.make_repository("APP: LIB\nLIB:\nISOLATED:\n")
+        adjacency = repository.adjacency()
+        self.assertEqual(adjacency, {
+            "APP": ["LIB"], "LIB": [], "ISOLATED": [],
+        })
+        adjacency["APP"].clear()
+        adjacency.pop("ISOLATED")
+        self.assertEqual(repository.dependency_names("APP"), ["LIB"])
+        self.assertEqual(repository.canonical_name("ISOLATED"), "ISOLATED")
+
 
 if __name__ == "__main__":
     unittest.main()

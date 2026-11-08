@@ -70,6 +70,11 @@ class TestRepository:
         """Return a copy of the package's direct dependencies."""
         return list(self._records[self.canonical_name(name)])
 
+    def adjacency(self):
+        """Return a detached snapshot of the entire declared repository."""
+        return {name: list(dependencies)
+                for name, dependencies in self._records.items()}
+
 
 def direct_dependencies(filename, package):
     """Preserve the direct-dependency API from stage two."""

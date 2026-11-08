@@ -1,0 +1,7 @@
+# Несколько потребителей общей зависимости и отдельный пакет.
+APP: LIB TOOL
+CLI: LIB
+LIB: CORE
+TOOL: CORE
+CORE:
+ISOLATED:

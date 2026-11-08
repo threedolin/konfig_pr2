@@ -1,4 +1,4 @@
-"""Tests of graph output and command-line validation in stage three."""
+"""Regression tests for forward graph output and CLI parameter validation."""
 
 import contextlib
 import io

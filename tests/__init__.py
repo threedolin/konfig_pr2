@@ -1,1 +1,1 @@
-"""Offline tests for Maven collection, BFS graphs and CLI validation."""
+"""Offline tests for Maven, forward/reverse BFS graphs and CLI validation."""

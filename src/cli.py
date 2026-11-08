@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from .graph import build_graph, format_graph
+from .graph import build_graph, format_graph, reverse_adjacency
 from .maven import PACKAGE_PATTERN, MavenRepository
 from .pom import RepositoryError
 from .test_repository import TEST_PACKAGE_PATTERN, TestRepository
@@ -29,7 +29,7 @@ def non_negative_int(value):
 def build_parser():
     """Create the parser for user-configurable application parameters."""
     parser = argparse.ArgumentParser(
-        description="Граф зависимостей Maven: BFS (вариант 18, этап 3)."
+        description="Прямые и обратные зависимости Maven (вариант 18, этап 4)."
     )
     parser.add_argument(
         "--package", required=True, metavar="NAME",
@@ -43,6 +43,12 @@ def build_parser():
         "--test-mode", choices=("true", "false"), default="false",
         help="использовать тестовый репозиторий (true/false)",
     )
+    add_analysis_arguments(parser)
+    return parser
+
+
+def add_analysis_arguments(parser):
+    """Add traversal, reverse lookup and future visualization options."""
     parser.add_argument(
         "--output", default="graph.svg", metavar="FILE",
         help="SVG-файл для этапа визуализации (по умолчанию graph.svg)",
@@ -51,7 +57,14 @@ def build_parser():
         "--max-depth", type=non_negative_int, default=3,
         metavar="N", help="максимальная глубина (по умолчанию 3)",
     )
-    return parser
+    parser.add_argument(
+        "--reverse", action="store_true",
+        help="показать пакеты, зависящие от выбранного пакета",
+    )
+    parser.add_argument(
+        "--analysis-root", metavar="NAME",
+        help="корень области поиска для --reverse (обязателен для Maven)",
+    )
 
 
 def validate_package(name, is_test_mode, parser):
@@ -114,6 +127,41 @@ def validate_output(filename, parser):
         parser.error("выходной файл не может быть каталогом")
 
 
+def validate_mode(options, parser):
+    """Require an explicit Maven reverse-lookup scope and valid root names."""
+    if options.analysis_root is not None:
+        if not options.reverse:
+            parser.error("--analysis-root используется только с --reverse")
+        validate_package(
+            options.analysis_root, options.test_mode == "true", parser
+        )
+    elif options.reverse and options.test_mode != "true":
+        parser.error("для --reverse в режиме Maven нужен --analysis-root")
+
+
+def collect_reverse_graph(repository, target, options):
+    """Invert the selected scope, then reuse the stage-three BFS algorithm."""
+    if options.analysis_root is None:
+        adjacency = repository.adjacency()
+        scope = "весь тестовый репозиторий"
+    else:
+        root = repository.canonical_name(options.analysis_root)
+        adjacency = build_graph(
+            root, repository.dependency_names, options.max_depth
+        ).adjacency
+        scope = (f"граф {root}, глубина {options.max_depth}; "
+                 "только найденные рёбра")
+    if target not in adjacency:
+        raise RepositoryError(
+            f"пакет {target} не найден в выбранной области поиска"
+        )
+    reversed_edges = reverse_adjacency(adjacency)
+    graph = build_graph(target, reversed_edges.__getitem__, options.max_depth)
+    graph.reverse = True
+    graph.scope = scope
+    return graph
+
+
 def collect_graph(options):
     """Choose a repository and build its graph with the common BFS algorithm."""
     if options.test_mode == "true":
@@ -121,6 +169,8 @@ def collect_graph(options):
     else:
         repository = MavenRepository(options.repository)
     root = repository.canonical_name(options.package)
+    if options.reverse:
+        return collect_reverse_graph(repository, root, options)
     return build_graph(root, repository.dependency_names, options.max_depth)
 
 
@@ -132,6 +182,7 @@ def main(argv=None):
     validate_package(options.package, is_test_mode, parser)
     validate_repository(options.repository, is_test_mode, parser)
     validate_output(options.output, parser)
+    validate_mode(options, parser)
 
     try:
         graph = collect_graph(options)
