@@ -1,0 +1,107 @@
+{
+  "tools": {
+    "maven": "Apache Maven 3.9.11 (3e54c93a704957b63ee3494413a2b544fd3d825b)",
+    "d2": "v0.9.0",
+    "maven_dependency_plugin": "3.8.1",
+    "graphviz": "dot - graphviz version 2.42.4 (0)"
+  },
+  "max_depth": 3,
+  "note": "Counts describe verbose JSON; see native text for omitted duplicate/conflict annotations.",
+  "examples": [
+    {
+      "application": {
+        "nodes": 3,
+        "edges": 3
+      },
+      "maven_json": {
+        "nodes": 3,
+        "edges": 3
+      },
+      "application_only_nodes": [],
+      "maven_only_nodes": [],
+      "application_only_edges": [],
+      "maven_only_edges": [],
+      "label": "junit",
+      "coordinates": "junit:junit:4.13.2",
+      "pom_url": "https://repo.maven.apache.org/maven2/junit/junit/4.13.2/junit-4.13.2.pom",
+      "pom_sha256": "569b6977ee4603c965c1c46c3058fa6e969291b0160eb6964dd092cd89eadd94",
+      "max_depth": 3,
+      "files": {
+        "text": "junit.maven-tree.txt",
+        "dot": "junit.maven.dot",
+        "json": "junit.maven.json",
+        "maven_svg": "junit.maven.svg",
+        "graph": "junit.graph.txt",
+        "d2": "junit.d2",
+        "svg": "junit.svg"
+      }
+    },
+    {
+      "application": {
+        "nodes": 2,
+        "edges": 1
+      },
+      "maven_json": {
+        "nodes": 2,
+        "edges": 1
+      },
+      "application_only_nodes": [],
+      "maven_only_nodes": [],
+      "application_only_edges": [],
+      "maven_only_edges": [],
+      "label": "hamcrest-library",
+      "coordinates": "org.hamcrest:hamcrest-library:1.3",
+      "pom_url": "https://repo.maven.apache.org/maven2/org/hamcrest/hamcrest-library/1.3/hamcrest-library-1.3.pom",
+      "pom_sha256": "1ceb4bfb0f098ae29b935044b2363e11323313fe3ed2055df8b79737d5056277",
+      "max_depth": 3,
+      "files": {
+        "text": "hamcrest-library.maven-tree.txt",
+        "dot": "hamcrest-library.maven.dot",
+        "json": "hamcrest-library.maven.json",
+        "maven_svg": "hamcrest-library.maven.svg",
+        "graph": "hamcrest-library.graph.txt",
+        "d2": "hamcrest-library.d2",
+        "svg": "hamcrest-library.svg"
+      }
+    },
+    {
+      "application": {
+        "nodes": 4,
+        "edges": 4
+      },
+      "maven_json": {
+        "nodes": 3,
+        "edges": 2
+      },
+      "application_only_nodes": [
+        "org.hamcrest:hamcrest-library:1.3"
+      ],
+      "maven_only_nodes": [],
+      "application_only_edges": [
+        [
+          "junit:junit:4.13.1",
+          "org.hamcrest:hamcrest-library:1.3"
+        ],
+        [
+          "org.hamcrest:hamcrest-library:1.3",
+          "org.hamcrest:hamcrest-core:1.3"
+        ]
+      ],
+      "maven_only_edges": [],
+      "label": "slf4j-api",
+      "coordinates": "org.slf4j:slf4j-api:2.0.17",
+      "pom_url": "https://repo.maven.apache.org/maven2/org/slf4j/slf4j-api/2.0.17/slf4j-api-2.0.17.pom",
+      "pom_sha256": "150c40287f7cecdc21b9380caac98e928c4f33c023db6b348df1c5ac977026bf",
+      "max_depth": 3,
+      "files": {
+        "text": "slf4j-api.maven-tree.txt",
+        "dot": "slf4j-api.maven.dot",
+        "json": "slf4j-api.maven.json",
+        "maven_svg": "slf4j-api.maven.svg",
+        "graph": "slf4j-api.graph.txt",
+        "d2": "slf4j-api.d2",
+        "svg": "slf4j-api.svg"
+      }
+    }
+  ]
+}

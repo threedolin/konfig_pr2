@@ -9,6 +9,7 @@ from .graph import build_graph, format_graph, reverse_adjacency
 from .maven import PACKAGE_PATTERN, MavenRepository
 from .pom import RepositoryError
 from .test_repository import TEST_PACKAGE_PATTERN, TestRepository
+from .visualization import render_graph
 
 
 def non_negative_int(value):
@@ -29,7 +30,7 @@ def non_negative_int(value):
 def build_parser():
     """Create the parser for user-configurable application parameters."""
     parser = argparse.ArgumentParser(
-        description="Прямые и обратные зависимости Maven (вариант 18, этап 4)."
+        description="Зависимости Maven: D2/SVG (вариант 18, этап 5)."
     )
     parser.add_argument(
         "--package", required=True, metavar="NAME",
@@ -48,10 +49,10 @@ def build_parser():
 
 
 def add_analysis_arguments(parser):
-    """Add traversal, reverse lookup and future visualization options."""
+    """Add graph traversal, reverse lookup and visualization options."""
     parser.add_argument(
         "--output", default="graph.svg", metavar="FILE",
-        help="SVG-файл для этапа визуализации (по умолчанию graph.svg)",
+        help="SVG-файл; рядом сохраняется D2 (по умолчанию graph.svg)",
     )
     parser.add_argument(
         "--max-depth", type=non_negative_int, default=3,
@@ -64,6 +65,10 @@ def add_analysis_arguments(parser):
     parser.add_argument(
         "--analysis-root", metavar="NAME",
         help="корень области поиска для --reverse (обязателен для Maven)",
+    )
+    parser.add_argument(
+        "--no-render", action="store_true",
+        help="вывести только текстовый граф без вызова D2 и записи файлов",
     )
 
 
@@ -186,6 +191,8 @@ def main(argv=None):
 
     try:
         graph = collect_graph(options)
+        if not options.no_render:
+            render_graph(graph, options.output)
     except RepositoryError as error:
         print(f"error: {error}", file=sys.stderr)
         return 1

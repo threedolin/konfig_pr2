@@ -28,7 +28,7 @@ class ReverseCliTests(unittest.TestCase):
         with contextlib.redirect_stdout(stdout):
             with contextlib.redirect_stderr(stderr):
                 try:
-                    status = main(arguments)
+                    status = main(arguments + ["--no-render"])
                 except SystemExit as error:
                     status = error.code
         return status, stdout.getvalue(), stderr.getvalue()

@@ -1,0 +1,40 @@
+{
+  "groupId": "junit",
+  "artifactId": "junit",
+  "version": "4.13.2",
+  "type": "jar",
+  "scope": "",
+  "classifier": "",
+  "optional": "false",
+  "children": [
+    {
+      "groupId": "org.hamcrest",
+      "artifactId": "hamcrest-core",
+      "version": "1.3",
+      "type": "jar",
+      "scope": "compile",
+      "classifier": "",
+      "optional": "false"
+    },
+    {
+      "groupId": "org.hamcrest",
+      "artifactId": "hamcrest-library",
+      "version": "1.3",
+      "type": "jar",
+      "scope": "test",
+      "classifier": "",
+      "optional": "false",
+      "children": [
+        {
+          "groupId": "org.hamcrest",
+          "artifactId": "hamcrest-core",
+          "version": "1.3",
+          "type": "jar",
+          "scope": "test",
+          "classifier": "",
+          "optional": "false"
+        }
+        ]
+    }
+    ]
+}

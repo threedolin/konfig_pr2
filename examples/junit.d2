@@ -1,0 +1,31 @@
+direction: right
+title: "Зависимости: junit:junit:4.13.2\nГлубина: 3" {
+  shape: text
+  near: top-center
+  style.font-size: 20
+}
+
+n0: "junit\njunit\n4.13.2" {
+  shape: rectangle
+  style.border-radius: 8
+  style.font-size: 16
+  style.fill: "#DBEAFE"
+  style.stroke: "#2563EB"
+  style.stroke-width: 3
+}
+n1: "org.hamcrest\nhamcrest-core\n1.3" {
+  shape: rectangle
+  style.border-radius: 8
+  style.font-size: 16
+  style.fill: "#F1F5F9"
+}
+n2: "org.hamcrest\nhamcrest-library\n1.3" {
+  shape: rectangle
+  style.border-radius: 8
+  style.font-size: 16
+  style.fill: "#F1F5F9"
+}
+
+n0 -> n1
+n0 -> n2
+n2 -> n1

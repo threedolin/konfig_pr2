@@ -1,1 +1,1 @@
-"""Maven forward and reverse dependency analysis for work 2, variant 18."""
+"""Maven dependency analysis and D2/SVG visualization for work 2, variant 18."""

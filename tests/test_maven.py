@@ -95,7 +95,7 @@ class HttpRepositoryTests(unittest.TestCase):
         """Run the entry point against HTTP without an external network."""
         result = subprocess.run(
             [sys.executable, "-m", "src.cli", "--package", "org.example:demo",
-             "--repository", self.url, "--max-depth", "2"],
+             "--repository", self.url, "--max-depth", "2", "--no-render"],
             cwd=ROOT, capture_output=True, text=True, timeout=10,
         )
         self.assertEqual((result.returncode, result.stderr), (0, ""))
@@ -147,7 +147,7 @@ class HttpRepositoryTests(unittest.TestCase):
             with contextlib.redirect_stderr(stderr):
                 status = main([
                     "--package", "missing:missing:1.0",
-                    "--repository", self.url,
+                    "--repository", self.url, "--no-render",
                 ])
         self.assertEqual((status, stdout.getvalue()), (1, ""))
         self.assertIn("HTTP 404", stderr.getvalue())
@@ -158,7 +158,7 @@ class HttpRepositoryTests(unittest.TestCase):
             [sys.executable, "-m", "src.cli", "--reverse",
              "--package", "org.example:shared:1.0",
              "--analysis-root", "org.example:demo:2.0",
-             "--repository", self.url, "--max-depth", "2"],
+             "--repository", self.url, "--max-depth", "2", "--no-render"],
             cwd=ROOT, capture_output=True, text=True, timeout=10,
         )
         self.assertEqual((result.returncode, result.stderr), (0, ""))
@@ -182,7 +182,7 @@ class HttpRepositoryTests(unittest.TestCase):
                 status = main([
                     "--package", "org.example:demo:2.0", "--reverse",
                     "--analysis-root", "org.example:demo:2.0",
-                    "--repository", self.url, "--max-depth", "1",
+                    "--repository", self.url, "--max-depth", "1", "--no-render",
                 ])
         self.assertEqual((status, stderr.getvalue()), (0, ""))
         self.assertIn("только найденные рёбра", stdout.getvalue())
@@ -197,7 +197,7 @@ class HttpRepositoryTests(unittest.TestCase):
                 status = main([
                     "--package", "org.example:empty:1.0", "--reverse",
                     "--analysis-root", "org.example:demo:2.0",
-                    "--repository", self.url, "--max-depth", "1",
+                    "--repository", self.url, "--max-depth", "1", "--no-render",
                 ])
         self.assertEqual((status, stdout.getvalue()), (1, ""))
         self.assertIn("не найден в выбранной области", stderr.getvalue())

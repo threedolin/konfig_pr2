@@ -45,7 +45,7 @@ class CliTests(unittest.TestCase):
         with contextlib.redirect_stdout(stdout):
             with contextlib.redirect_stderr(stderr):
                 try:
-                    status = main(args)
+                    status = main(args + ["--no-render"])
                 except SystemExit as error:
                     status = error.code
         return status, stdout.getvalue(), stderr.getvalue()

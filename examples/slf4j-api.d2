@@ -1,0 +1,38 @@
+direction: right
+title: "Зависимости: org.slf4j:slf4j-api:2.0.17\nГлубина: 3" {
+  shape: text
+  near: top-center
+  style.font-size: 20
+}
+
+n0: "org.slf4j\nslf4j-api\n2.0.17" {
+  shape: rectangle
+  style.border-radius: 8
+  style.font-size: 16
+  style.fill: "#DBEAFE"
+  style.stroke: "#2563EB"
+  style.stroke-width: 3
+}
+n1: "junit\njunit\n4.13.1" {
+  shape: rectangle
+  style.border-radius: 8
+  style.font-size: 16
+  style.fill: "#F1F5F9"
+}
+n2: "org.hamcrest\nhamcrest-core\n1.3" {
+  shape: rectangle
+  style.border-radius: 8
+  style.font-size: 16
+  style.fill: "#F1F5F9"
+}
+n3: "org.hamcrest\nhamcrest-library\n1.3" {
+  shape: rectangle
+  style.border-radius: 8
+  style.font-size: 16
+  style.fill: "#F1F5F9"
+}
+
+n0 -> n1
+n1 -> n2
+n1 -> n3
+n3 -> n2
