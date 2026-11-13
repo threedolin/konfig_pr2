@@ -42,6 +42,18 @@ HTTP(S), `xml.etree.ElementTree` для POM и `collections.deque` для BFS.
   org.hamcrest:hamcrest-library:1.3 [глубина=1]: org.hamcrest:hamcrest-core:1.3
 ```
 
+### Диаграммы JUnit
+
+Граф `junit:junit:4.13.2`, полученный из Maven Central:
+
+![Граф зависимостей JUnit из Maven Central](graph.svg)
+
+Тот же пакет из зеркала Aliyun (`https://maven.aliyun.com/repository/central`):
+
+![Граф зависимостей JUnit из Aliyun](aliyun.svg)
+
+### Другие способы запуска
+
 Также создаются `graph.d2` и `graph.svg`. Текстовый режим без D2 и без
 записи файлов доступен через `--no-render`:
 

@@ -8,5 +8,7 @@ venv/
 .env
 *.svg
 *.d2
+!/graph.svg
+!/aliyun.svg
 !examples/*.svg
 !examples/*.d2
